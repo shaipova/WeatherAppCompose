@@ -8,72 +8,62 @@ import com.example.weatherappcompose.DateFormat.Companion.getDateString
 import com.example.weatherappcompose.DateFormat.Companion.getShortDateString
 import com.example.weatherappcompose.DateFormat.Companion.getTimeString
 import com.example.weatherappcompose.model.CurrentWeatherResponse
-import com.example.weatherappcompose.model_forecast.Daily
 import com.example.weatherappcompose.model_forecast.ForecastResponse
-import com.example.weatherappcompose.model_forecast.Hourly
 import com.example.weatherappcompose.repository.Repository
 import kotlinx.coroutines.launch
 import retrofit2.Response
-import java.text.Format
 import java.text.SimpleDateFormat
 import java.util.*
 
 class ViewModel(val repository: Repository) : ViewModel() {
 
-    val _currentWeather: MutableLiveData<Resource<CurrentWeatherResponse>> = MutableLiveData()
+    private val _currentWeather: MutableLiveData<Resource<CurrentWeatherResponse>> = MutableLiveData()
     val currentWeather: LiveData<Resource<CurrentWeatherResponse>> = _currentWeather
     var weatherResponse: CurrentWeatherResponse? = null
 
     val forecastWeather: MutableLiveData<Resource<ForecastResponse>> = MutableLiveData()
     var forecastResponse: ForecastResponse? = null
 
-    val _weatherToday: MutableLiveData<CurrentWeatherResponse> = MutableLiveData()
-    val weatherToday: LiveData<CurrentWeatherResponse> = _weatherToday
-
-    val _weatherForecast: MutableLiveData<ForecastResponse> = MutableLiveData()
-    val weatherForecast: LiveData<ForecastResponse> = _weatherForecast
-
-    val _test: MutableLiveData<String> = MutableLiveData("Test")
-    val test: LiveData<String> = _test
-
     val currentTemp: MutableLiveData<String> = MutableLiveData("")
     val dateFormat: MutableLiveData<String> = MutableLiveData("")
     val city: MutableLiveData<String> = MutableLiveData("")
     val description: MutableLiveData<String> = MutableLiveData("")
     val iconUrl: MutableLiveData<String> = MutableLiveData("")
-    val shortDate: MutableLiveData<String> = MutableLiveData("")
 
-
-    var _listDaily: MutableLiveData<List<FormatForecast>> = MutableLiveData()
+    private var _listDaily: MutableLiveData<List<FormatForecast>> = MutableLiveData()
     val listDaily: LiveData<List<FormatForecast>> = _listDaily
 
-    var _listHourly: MutableLiveData<List<FormatForecast>> = MutableLiveData()
+    private var _listHourly: MutableLiveData<List<FormatForecast>> = MutableLiveData()
     var listHourly:LiveData<List<FormatForecast>> = _listHourly
+
+    val showProgressBar: MutableLiveData<Boolean> = MutableLiveData(false)
 
 
     fun getClearResult(response: Resource<CurrentWeatherResponse>) {
         when (response) {
             is Resource.Success -> {
-                onProgressBar.postValue(false)
-                _weatherToday.value = response.data
+                showProgressBar.postValue(false)
 
-                dateFormat.value = _weatherToday.value?.dt?.let { getDateString(it) }
-                city.value = _weatherToday.value?.name
-                description.value = _weatherToday.value?.weather?.get(0)?.description
+                response.data?.let { weatherToday ->
 
-                val iconId = _weatherToday.value?.weather?.get(0)?.icon
-                iconUrl.value = "https://openweathermap.org/img/wn/$iconId@2x.png"
+                    dateFormat.value = getDateString(weatherToday.dt)
+                    city.value = weatherToday.name
+                    description.value = weatherToday.weather[0].description
 
-                val temp = checkTemp(_weatherToday.value?.main?.temp?.toInt())
-                currentTemp.value = temp
+                    val iconId = weatherToday.weather[0].icon
+                    iconUrl.value = "https://openweathermap.org/img/wn/$iconId@2x.png"
+
+                    val temp = checkTemp(weatherToday.main.temp.toInt())
+                    currentTemp.value = temp
+                }
 
             }
             is Resource.Error -> {
-                onProgressBar.postValue(true)
+                showProgressBar.postValue(true)
 
             }
             is Resource.Loading -> {
-                onProgressBar.postValue(true)
+                showProgressBar.postValue(true)
             }
         }
     }
@@ -83,17 +73,16 @@ class ViewModel(val repository: Repository) : ViewModel() {
     fun getClearHourlyDailyResult(response: Resource<ForecastResponse>) {
         when (response) {
             is Resource.Success -> {
-                onProgressBar.postValue(false)
-                _weatherForecast.value = response.data
+                showProgressBar.postValue(false)
 
+                response.data?.let { weatherForecast ->
 
-                val daily = _weatherForecast.value?.daily
-                val hourly = _weatherForecast.value?.hourly
+                    val daily = weatherForecast.daily
+                    val hourly = weatherForecast.hourly
 
-                val formatHourly = mutableListOf<FormatForecast>()
-                val formatDaily = mutableListOf<FormatForecast>()
+                    val formatHourly = mutableListOf<FormatForecast>()
+                    val formatDaily = mutableListOf<FormatForecast>()
 
-                if (hourly != null) {
                     for (item in hourly) {
                         val shortFormatDate = getShortDateString(item.dt)
                         val formatTime = getTimeString(item.dt)
@@ -102,9 +91,7 @@ class ViewModel(val repository: Repository) : ViewModel() {
 
                         formatHourly.add(FormatForecast(shortDate = shortFormatDate, time = formatTime, temp = formatTemp, icon = iconId))
                     }
-                }
 
-                if (daily != null) {
                     for (item in daily) {
                         val formatDate = getDateString(item.dt)
                         val formatTemp = checkTemp(item.temp.day.toInt())
@@ -112,25 +99,23 @@ class ViewModel(val repository: Repository) : ViewModel() {
 
                         formatDaily.add(FormatForecast(date = formatDate, temp = formatTemp, icon = iconId))
                     }
-                }
-                _listDaily.value = formatDaily.toList()
-                _listHourly.value = formatHourly.toList()
+                    _listDaily.value = formatDaily.toList()
+                    _listHourly.value = formatHourly.toList()
 
+
+
+                }
 
             }
             is Resource.Error -> {
-                onProgressBar.postValue(true)
+                showProgressBar.postValue(true)
 
             }
             is Resource.Loading -> {
-                onProgressBar.postValue(true)
+                showProgressBar.postValue(true)
             }
         }
     }
-
-
-
-    val onProgressBar: MutableLiveData<Boolean> = MutableLiveData(false)
 
     // получить прогноз погоды по координатам на неделю и почасовой прогноз
     fun getForecast(latitude: Double, longitude: Double) = viewModelScope.launch {
