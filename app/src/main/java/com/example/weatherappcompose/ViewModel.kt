@@ -1,0 +1,229 @@
+package com.example.weatherappcompose
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.weatherappcompose.DateFormat.Companion.getDateString
+import com.example.weatherappcompose.DateFormat.Companion.getShortDateString
+import com.example.weatherappcompose.DateFormat.Companion.getTimeString
+import com.example.weatherappcompose.model.CurrentWeatherResponse
+import com.example.weatherappcompose.model_forecast.Daily
+import com.example.weatherappcompose.model_forecast.ForecastResponse
+import com.example.weatherappcompose.model_forecast.Hourly
+import com.example.weatherappcompose.repository.Repository
+import kotlinx.coroutines.launch
+import retrofit2.Response
+import java.text.Format
+import java.text.SimpleDateFormat
+import java.util.*
+
+class ViewModel(val repository: Repository) : ViewModel() {
+
+    val _currentWeather: MutableLiveData<Resource<CurrentWeatherResponse>> = MutableLiveData()
+    val currentWeather: LiveData<Resource<CurrentWeatherResponse>> = _currentWeather
+    var weatherResponse: CurrentWeatherResponse? = null
+
+    val forecastWeather: MutableLiveData<Resource<ForecastResponse>> = MutableLiveData()
+    var forecastResponse: ForecastResponse? = null
+
+    val _weatherToday: MutableLiveData<CurrentWeatherResponse> = MutableLiveData()
+    val weatherToday: LiveData<CurrentWeatherResponse> = _weatherToday
+
+    val _weatherForecast: MutableLiveData<ForecastResponse> = MutableLiveData()
+    val weatherForecast: LiveData<ForecastResponse> = _weatherForecast
+
+    val _test: MutableLiveData<String> = MutableLiveData("Test")
+    val test: LiveData<String> = _test
+
+    val currentTemp: MutableLiveData<String> = MutableLiveData("")
+    val dateFormat: MutableLiveData<String> = MutableLiveData("")
+    val city: MutableLiveData<String> = MutableLiveData("")
+    val description: MutableLiveData<String> = MutableLiveData("")
+    val iconUrl: MutableLiveData<String> = MutableLiveData("")
+    val shortDate: MutableLiveData<String> = MutableLiveData("")
+
+
+    var _listDaily: MutableLiveData<List<FormatForecast>> = MutableLiveData()
+    val listDaily: LiveData<List<FormatForecast>> = _listDaily
+
+    var _listHourly: MutableLiveData<List<FormatForecast>> = MutableLiveData()
+    var listHourly:LiveData<List<FormatForecast>> = _listHourly
+
+
+    fun getClearResult(response: Resource<CurrentWeatherResponse>) {
+        when (response) {
+            is Resource.Success -> {
+                onProgressBar.postValue(false)
+                _weatherToday.value = response.data
+
+                dateFormat.value = _weatherToday.value?.dt?.let { getDateString(it) }
+                city.value = _weatherToday.value?.name
+                description.value = _weatherToday.value?.weather?.get(0)?.description
+
+                val iconId = _weatherToday.value?.weather?.get(0)?.icon
+                iconUrl.value = "https://openweathermap.org/img/wn/$iconId@2x.png"
+
+                val temp = checkTemp(_weatherToday.value?.main?.temp?.toInt())
+                currentTemp.value = temp
+
+            }
+            is Resource.Error -> {
+                onProgressBar.postValue(true)
+
+            }
+            is Resource.Loading -> {
+                onProgressBar.postValue(true)
+            }
+        }
+    }
+
+
+
+    fun getClearHourlyDailyResult(response: Resource<ForecastResponse>) {
+        when (response) {
+            is Resource.Success -> {
+                onProgressBar.postValue(false)
+                _weatherForecast.value = response.data
+
+
+                val daily = _weatherForecast.value?.daily
+                val hourly = _weatherForecast.value?.hourly
+
+                val formatHourly = mutableListOf<FormatForecast>()
+                val formatDaily = mutableListOf<FormatForecast>()
+
+                if (hourly != null) {
+                    for (item in hourly) {
+                        val shortFormatDate = getShortDateString(item.dt)
+                        val formatTime = getTimeString(item.dt)
+                        val formatTemp = checkTemp(item.temp.toInt())
+                        val iconId = item.weather[0].icon
+
+                        formatHourly.add(FormatForecast(shortDate = shortFormatDate, time = formatTime, temp = formatTemp, icon = iconId))
+                    }
+                }
+
+                if (daily != null) {
+                    for (item in daily) {
+                        val formatDate = getDateString(item.dt)
+                        val formatTemp = checkTemp(item.temp.day.toInt())
+                        val iconId = item.weather[0].icon
+
+                        formatDaily.add(FormatForecast(date = formatDate, temp = formatTemp, icon = iconId))
+                    }
+                }
+                _listDaily.value = formatDaily.toList()
+                _listHourly.value = formatHourly.toList()
+
+
+            }
+            is Resource.Error -> {
+                onProgressBar.postValue(true)
+
+            }
+            is Resource.Loading -> {
+                onProgressBar.postValue(true)
+            }
+        }
+    }
+
+
+
+    val onProgressBar: MutableLiveData<Boolean> = MutableLiveData(false)
+
+    // получить прогноз погоды по координатам на неделю и почасовой прогноз
+    fun getForecast(latitude: Double, longitude: Double) = viewModelScope.launch {
+        forecastWeather.value = Resource.Loading()
+        val response = repository.getForecast(latitude, longitude)
+        forecastWeather.value = handleDailyForecastResponse(response)
+        forecastWeather.value?.let { getClearHourlyDailyResult(it) }
+    }
+
+    // получить данные по текущей погоде по названию города
+    fun getCurrentWeather(cityName: String) = viewModelScope.launch {
+        _currentWeather.value = Resource.Loading()
+        val response = repository.getCurrentWeather(cityName)
+        _currentWeather.value = handleWeatherResponse(response)
+        currentWeather.value?.let { getClearResult(it) }
+    }
+
+    // получить данные по текущей погоде по координатам
+    fun getCurrentWeatherByCoord(latitude: Double, longitude: Double) = viewModelScope.launch {
+        _currentWeather.value = Resource.Loading()
+        val response = repository.getCurrentWeatherByCoord(latitude, longitude)
+        _currentWeather.value = handleWeatherResponse(response)
+    }
+
+    //широта и долгота
+    var lat: Double = 0.0
+    var lon: Double = 0.0
+
+    //получить координаты запрашиваемого города
+    private fun getCoord(){
+        weatherResponse?.coord?.lat?.also {
+            lat = it
+        }
+        weatherResponse?.coord?.lon?.also {
+            lon = it
+        }
+        getForecast(lat, lon)
+    }
+
+    private fun handleWeatherResponse(response: Response<CurrentWeatherResponse>) : Resource<CurrentWeatherResponse>{
+        if(response.isSuccessful) {
+            response.body()?.let { resultResponse ->
+                weatherResponse = resultResponse
+                getCoord()
+                return Resource.Success(weatherResponse ?: resultResponse)
+            }
+        }
+        return Resource.Error(response.message())
+    }
+
+    private fun handleDailyForecastResponse(response: Response<ForecastResponse>) : Resource<ForecastResponse>{
+        if(response.isSuccessful) {
+            response.body()?.let { resultResponse ->
+                forecastResponse = resultResponse
+
+                return Resource.Success(forecastResponse ?: resultResponse)
+            }
+        }
+        return Resource.Error(response.message())
+    }
+
+
+    private fun checkTemp(temp: Int?): String {
+        return if (temp != null) {
+            if (temp >= 0) {
+                "+${temp}°"
+            } else "-${temp}°"
+        } else "Null"
+    }
+}
+
+class DateFormat {
+    companion object {
+        private val simpleDateFormat = SimpleDateFormat("E, dd MMMM", Locale("ru"))
+        private val shortDateFormat = SimpleDateFormat("dd MMM", Locale("ru"))
+        private val simpleTimeFormat = SimpleDateFormat("HH:mm", Locale("ru"))
+        fun getTimeString(time: Int): String = simpleTimeFormat.format(time * 1000L)
+        fun getDateString(time: Int): String {
+            val date = simpleDateFormat.format(time * 1000L)
+            var result = ""
+            if (date[4].equals('0')) {
+                result = date.removeRange(4..4)
+            } else return date
+            return result
+        }
+
+        fun getShortDateString(time: Int): String {
+            val date = shortDateFormat.format(time * 1000L)
+            var result = ""
+            if (date[0].equals('0')) {
+                result = date.removeRange(0..0)
+            } else return date
+            return result
+        }
+    }
+}
