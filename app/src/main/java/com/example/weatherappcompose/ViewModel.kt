@@ -140,6 +140,7 @@ class ViewModel(val repository: Repository) : ViewModel() {
         _currentWeather.value = Resource.Loading()
         val response = repository.getCurrentWeatherByCoord(latitude, longitude)
         _currentWeather.value = handleWeatherResponse(response)
+        currentWeather.value?.let { getClearResult(it) }
     }
 
     //широта и долгота

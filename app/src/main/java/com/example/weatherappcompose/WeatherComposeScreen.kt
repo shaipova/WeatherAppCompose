@@ -1,17 +1,22 @@
 package com.example.weatherappcompose
 
+import android.app.Activity
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -19,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.glide.rememberGlidePainter
 import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 
 @Composable
 fun WeatherScreen(
@@ -49,6 +56,7 @@ fun CitySearchField(viewModel: ViewModel) {
     var text by remember {
         mutableStateOf("")
     }
+    val focusManager = LocalFocusManager.current
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -62,6 +70,12 @@ fun CitySearchField(viewModel: ViewModel) {
             onValueChange = { text = it },
             label = { Text("Введите город") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                focusManager.clearFocus()
+                viewModel.getCurrentWeather(text) }
+            )
         )
         IconButton(
             onClick = {
