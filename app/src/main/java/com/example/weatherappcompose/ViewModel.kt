@@ -37,6 +37,7 @@ class ViewModel(val repository: Repository) : ViewModel() {
     var listHourly:LiveData<List<FormatForecast>> = _listHourly
 
     val showProgressBar: MutableLiveData<Boolean> = MutableLiveData(false)
+    val showSnackbar: MutableLiveData<Boolean> = MutableLiveData(false)
 
 
     fun getClearResult(response: Resource<CurrentWeatherResponse>) {
@@ -60,6 +61,8 @@ class ViewModel(val repository: Repository) : ViewModel() {
             }
             is Resource.Error -> {
                 showProgressBar.postValue(true)
+                showSnackbar.postValue(true)
+                showProgressBar.postValue(false)
 
             }
             is Resource.Loading -> {
@@ -102,14 +105,13 @@ class ViewModel(val repository: Repository) : ViewModel() {
                     _listDaily.value = formatDaily.toList()
                     _listHourly.value = formatHourly.toList()
 
-
-
                 }
 
             }
             is Resource.Error -> {
                 showProgressBar.postValue(true)
-
+                showSnackbar.postValue(true)
+                showProgressBar.postValue(false)
             }
             is Resource.Loading -> {
                 showProgressBar.postValue(true)
