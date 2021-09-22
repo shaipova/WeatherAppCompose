@@ -11,6 +11,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.ViewModelProvider
 import com.example.weatherappcompose.Constants.Companion.REQUEST_CODE_LOCATION_PERMISSION
 import com.example.weatherappcompose.repository.Repository
 import com.example.weatherappcompose.ui.theme.WeatherAppComposeTheme
@@ -28,7 +29,8 @@ class MainActivity : ComponentActivity(), EasyPermissions.PermissionCallbacks {
         super.onCreate(savedInstanceState)
 
         val repository = Repository()
-        viewModel = ViewModel(repository)
+        val viewModelProviderFactory = ViewModelProviderFactory(repository)
+        viewModel = ViewModelProvider(this, viewModelProviderFactory).get(ViewModel::class.java)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         requestLocationPermissions()
